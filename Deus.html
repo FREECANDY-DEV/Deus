@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liquid Eye Animation Tester</title>
+    <style>
+        body {
+            background-color: #000000;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow-x: hidden;
+            position: relative;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        /* שכבת רקע של רעש דינמי דמוי גרעיניות סרט קולנועי */
+        #noiseCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+            pointer-events: none;
+            opacity: 0.85;
+        }
+
+        /* מכל העין המרחף - רספונסיבי לחלוטין וללא מסגרות קשיחות */
+        .container {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 25px;
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+            border: none;
+            box-shadow: none;
+            width: 100%;
+            max-width: 512px;
+            box-sizing: border-box;
+        }
+
+        canvas#eyeCanvas {
+            background-color: transparent;
+            outline: none;
+            /* הגדרות רספונסיביות מושלמות להתאמה לטלפונים ניידים ללא חיתוך */
+            max-width: 100%;
+            height: auto;
+            aspect-ratio: 1 / 1;
+        }
+
+        /* עטיפת בקרים חכמה המגיבה לגודל המסך */
+        .controls-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            background: rgba(15, 15, 20, 0.4);
+            padding: 20px 30px;
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            width: 100%;
+            box-sizing: border-box;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .slider-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            max-width: 320px;
+            margin-top: 5px;
+        }
+
+        .slider-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.8);
+            letter-spacing: 0.5px;
+            text-align: center;
+        }
+
+        .slider-label span {
+            color: #ef4444;
+            font-weight: 700;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: #94a3b8;
+            background: rgba(255, 255, 255, 0.1);
+            height: 6px;
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        input[type="range"]:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        button {
+            padding: 12px 20px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            cursor: pointer;
+            background-color: rgba(255, 255, 255, 0.02);
+            color: rgba(255, 255, 255, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 30px;
+            font-weight: 600;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            /* מניעת בחירת טקסט ולחיצות כפולות בניידים */
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        button:hover {
+            color: #ffffff;
+            background-color: rgba(255, 255, 255, 0.06);
+        }
+
+        button.active {
+            background-color: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.15);
+            color: #ffffff;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.05);
+        }
+
+        /* עיצוב ייחודי לכפתור הניתוק האדום */
+        button#disconnectedBtn.active {
+            background-color: rgba(239, 68, 68, 0.15);
+            border-color: rgba(239, 68, 68, 0.5);
+            color: #fca5a5;
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.15);
+            text-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+        }
+
+        button#thinkingBtn.active {
+            background-color: rgba(59, 130, 246, 0.15);
+            border-color: rgba(59, 130, 246, 0.5);
+            color: #93c5fd;
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
+        }
+
+        /* עיצוב ייחודי לכפתור המצלמה הירוק */
+        button#cameraBtn.active {
+            background-color: rgba(34, 197, 94, 0.15);
+            border-color: rgba(34, 197, 94, 0.5);
+            color: #86efac;
+            box-shadow: 0 0 20px rgba(34, 197, 94, 0.15);
+            text-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+        }
+
+        /* התאמה רספונסיבית מדוייקת למסכים קטנים במיוחד (סמארטפונים) */
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+
+            .container {
+                gap: 15px;
+            }
+
+            .controls-wrapper {
+                padding: 15px;
+                border-radius: 24px;
+                gap: 12px;
+            }
+
+            .controls {
+                gap: 6px;
+                width: 100%;
+            }
+
+            button {
+                padding: 10px 12px;
+                font-size: 11px;
+                letter-spacing: 0.5px;
+                /* חלוקת הכפתורים לשורות של 2 במסכים קטנים מאוד */
+                flex: 1 1 calc(50% - 6px);
+                min-width: 100px;
+                text-align: center;
+                box-sizing: border-box;
+            }
+
+            .slider-container {
+                width: 100%;
+                padding: 0 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- שכבת רקע של רעש שחור דינמי ברקע -->
+    <canvas id="noiseCanvas"></canvas>
+
+    <div class="container">
+        <!-- קנבס ברזולוציה מוגדלת למניעת חיתוך גלים וטיפות קצה -->
+        <canvas id="eyeCanvas" width="512" height="512"></canvas>
+        <div class="controls-wrapper">
+            <div class="controls">
+                <button id="normalBtn" class="active">מצב רגיל</button>
+                <button id="thinkingBtn">מצב חשיבה</button>
+                <button id="disconnectedBtn">מנותק / שגיאה</button>
+                <button id="cameraBtn">הפעל מצלמה</button>
+            </div>
+            <div class="slider-container">
+                <span class="slider-label">רמת עייפות העין: <span id="fatigueValue">0%</span></span>
+                <input type="range" id="fatigueSlider" min="0" max="100" value="0">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. מנוע רעש גרעיני ברקע (Dynamic Film Grain) ---
+        const noiseCanvas = document.getElementById('noiseCanvas');
+        const noiseCtx = noiseCanvas.getContext('2d');
+        
+        const noiseTiles = [];
+        const metalNoiseTiles = []; // שכבת רעש נקודות חזקה ומותאמת למתכת
+        const tileSize = 256;
+        let noiseFrame = 0;
+
+        // יצירת 4 פריימים של רעש אורגני כהה לביצועים אופטימליים ברקע
+        for (let i = 0; i < 4; i++) {
+            const tile = document.createElement('canvas');
+            tile.width = tileSize;
+            tile.height = tileSize;
+            const tileCtx = tile.getContext('2d');
+            const imgData = tileCtx.createImageData(tileSize, tileSize);
+            
+            for (let j = 0; j < imgData.data.length; j += 4) {
+                const baseNoise = Math.random() * 12; 
+                const warmTint = Math.random() * 2;   
+                
+                imgData.data[j] = Math.max(0, baseNoise + warmTint);     
+                imgData.data[j+1] = Math.max(0, baseNoise);              
+                imgData.data[j+2] = Math.max(0, baseNoise - warmTint);   
+                imgData.data[j+3] = 255;                                 
+            }
+            tileCtx.putImageData(imgData, 0, 0);
+            noiseTiles.push(tile);
+        }
+
+        // יצירת 4 פריימים של רעש נקודות (Point Noise) בעל קונטרסט גבוה במיוחד עבור טקסטורת הנוזל
+        for (let i = 0; i < 4; i++) {
+            const tile = document.createElement('canvas');
+            tile.width = tileSize;
+            tile.height = tileSize;
+            const tileCtx = tile.getContext('2d');
+            const imgData = tileCtx.createImageData(tileSize, tileSize);
+            
+            for (let j = 0; j < imgData.data.length; j += 4) {
+                let val = 128;
+                if (Math.random() < 0.20) {
+                    val = Math.random() < 0.5 ? Math.random() * 50 : 205 + Math.random() * 50;
+                } else {
+                    val = 112 + Math.random() * 32; 
+                }
+                
+                imgData.data[j] = val;     
+                imgData.data[j+1] = val;   
+                imgData.data[j+2] = val;   
+                imgData.data[j+3] = 255;   
+            }
+            tileCtx.putImageData(imgData, 0, 0);
+            metalNoiseTiles.push(tile);
+        }
+
+        const updateNoiseBackground = () => {
+            if (noiseCanvas.width !== window.innerWidth || noiseCanvas.height !== window.innerHeight) {
+                noiseCanvas.width = window.innerWidth;
+                noiseCanvas.height = window.innerHeight;
+            }
+            
+            noiseFrame = (noiseFrame + 1) % noiseTiles.length;
+            const currentTile = noiseTiles[noiseFrame];
+            
+            const pattern = noiseCtx.createPattern(currentTile, 'repeat');
+            noiseCtx.fillStyle = pattern;
+            noiseCtx.fillRect(0, 0, noiseCanvas.width, noiseCanvas.height);
+        };
+
+
+        // --- 2. מנוע יצירת טקסטורת גלי מים מתכתית מרוחה (Smeared Fluid Wave Caustics) ---
+        const liquidNoiseCanvas = document.createElement('canvas');
+        liquidNoiseCanvas.width = 512;
+        liquidNoiseCanvas.height = 512;
+        const lnCtx = liquidNoiseCanvas.getContext('2d');
+        
+        lnCtx.fillStyle = '#808080'; // אפור ניטרלי עבור שיטת ערבול overlay
+        lnCtx.fillRect(0, 0, 512, 512);
+
+        // ציור 1200 קווי זרימה ארוכים ומפותלים המדמים אדוות מים
+        for (let i = 0; i < 1200; i++) {
+            let x = Math.random() * 512;
+            let y = Math.random() * 512;
+            let length = 40 + Math.random() * 80;
+            let width = 3 + Math.random() * 12;
+            let alpha = 0.05 + Math.random() * 0.12;
+            let isBright = Math.random() > 0.45;
+            let colorVal = isBright ? 255 : 0;
+            
+            lnCtx.strokeStyle = `rgba(${colorVal}, ${colorVal}, ${colorVal}, ${alpha})`;
+            lnCtx.lineWidth = width;
+            lnCtx.lineCap = 'round';
+            
+            lnCtx.beginPath();
+            lnCtx.moveTo(x, y);
+            let cp1x = x + length * 0.33;
+            let cp1y = y + Math.sin(i * 0.1) * 16;
+            let cp2x = x + length * 0.66;
+            let cp2y = y - Math.sin(i * 0.1) * 16;
+            let destX = x + length;
+            let destY = y + Math.cos(i * 0.1) * 6;
+            lnCtx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, destX, destY);
+            lnCtx.stroke();
+            
+            // תפירה אופקית ואנכית (seamless wrapping)
+            lnCtx.beginPath();
+            lnCtx.moveTo(x - 512, y);
+            lnCtx.bezierCurveTo(cp1x - 512, cp1y, cp2x - 512, cp2y, destX - 512, destY);
+            lnCtx.stroke();
+            
+            lnCtx.beginPath();
+            lnCtx.moveTo(x, y - 512);
+            lnCtx.bezierCurveTo(cp1x, cp1y - 512, cp2x, cp2y - 512, destX, destY - 512);
+            lnCtx.stroke();
+        }
+
+        const blurCanvas = document.createElement('canvas');
+        blurCanvas.width = 512;
+        blurCanvas.height = 512;
+        const blurCtx = blurCanvas.getContext('2d');
+        blurCtx.filter = 'blur(6px)';
+        blurCtx.drawImage(liquidNoiseCanvas, 0, 0);
+        
+        lnCtx.clearRect(0, 0, 512, 512);
+        lnCtx.drawImage(blurCanvas, 0, 0);
+
+        // שכבת גלים שנייה לקבלת התאבכות גלים צולבת ועשירה
+        const liquidNoiseCanvas2 = document.createElement('canvas');
+        liquidNoiseCanvas2.width = 512;
+        liquidNoiseCanvas2.height = 512;
+        const lnCtx2 = liquidNoiseCanvas2.getContext('2d');
+        
+        lnCtx2.fillStyle = '#808080';
+        lnCtx2.fillRect(0, 0, 512, 512);
+
+        for (let i = 0; i < 900; i++) {
+            let x = Math.random() * 512;
+            let y = Math.random() * 512;
+            let length = 50 + Math.random() * 90;
+            let width = 2 + Math.random() * 9;
+            let alpha = 0.04 + Math.random() * 0.10;
+            let isBright = Math.random() > 0.5;
+            let colorVal = isBright ? 245 : 10;
+            
+            lnCtx2.strokeStyle = `rgba(${colorVal}, ${colorVal}, ${colorVal}, ${alpha})`;
+            lnCtx2.lineWidth = width;
+            lnCtx2.lineCap = 'round';
+            
+            lnCtx2.beginPath();
+            lnCtx2.moveTo(x, y);
+            let cp1x = x + Math.cos(i * 0.08) * 15;
+            let cp1y = y + length * 0.33;
+            let cp2x = x - Math.cos(i * 0.08) * 15;
+            let cp2y = y + length * 0.66;
+            let destX = x + Math.sin(i * 0.08) * 5;
+            let destY = y + length;
+            lnCtx2.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, destX, destY);
+            lnCtx2.stroke();
+            
+            lnCtx2.beginPath();
+            lnCtx2.moveTo(x - 512, y);
+            lnCtx2.bezierCurveTo(cp1x - 512, cp1y, cp2x - 512, cp2y, destX - 512, destY);
+            lnCtx2.stroke();
+            
+            lnCtx2.beginPath();
+            lnCtx2.moveTo(x, y - 512);
+            lnCtx2.bezierCurveTo(cp1x, cp1y - 512, cp2x, cp2y - 512, destX, destY - 512);
+            lnCtx2.stroke();
+        }
+
+        const blurCanvas2 = document.createElement('canvas');
+        blurCanvas2.width = 512;
+        blurCanvas2.height = 512;
+        const blurCtx2 = blurCanvas2.getContext('2d');
+        blurCtx2.filter = 'blur(5px)';
+        blurCtx2.drawImage(liquidNoiseCanvas2, 0, 0);
+        
+        lnCtx2.clearRect(0, 0, 512, 512);
+        lnCtx2.drawImage(blurCanvas2, 0, 0);
+
+
+        // --- 3. סימולציית העין והמתכת הנוזלית ---
+        class Droplet {
+            constructor(baseRadius) {
+                this.angle = Math.random() * 2 * Math.PI;
+                this.dist = Math.random() * (baseRadius * 1.6 - baseRadius * 1.1) + baseRadius * 1.1;
+                this.base_dist = this.dist;
+                this.size = Math.random() * (16 - 6) + 6;
+                this.base_size = this.size;
+                this.speed = Math.random() * 0.01 - 0.005;
+                this.phase = Math.random() * Math.PI * 2;
+                this.state = "outside";
+                this.state_timer = Math.random() * 1.4 + 0.8;
+                this.surface_bias = Math.random() * 0.16 - 0.08;
+                this.merge = 0.0;
+                
+                // --- תוספת משתני פיזיקה לביצוע התנגשויות אלסטיות דינמיות ---
+                this.offsetX = 0;
+                this.offsetY = 0;
+                this.vx = 0;
+                this.vy = 0;
+            }
+
+            update(time_step, surface_radius, currentMode, fatigue) {
+                let is_thinking = (currentMode === "thinking");
+                let is_disconnected = (currentMode === "disconnected");
+                
+                if (is_thinking) {
+                    // שינוי פיזיקלי במצב חשיבה: פחות סיבוב, שאיבה מהירה ונקייה פנימה
+                    let spiral_speed = 0.005 + (this.speed * 1.5);
+                    this.angle += spiral_speed;
+
+                    // משיכה ישירה ורכה למרכז
+                    this.dist -= 3.8; 
+
+                    // התמוססות ודעיכת גודל הטיפה ככל שהיא נבלעת בגוף הראשי
+                    let absorption_threshold = this.base_dist * 0.7;
+                    if (this.dist < absorption_threshold) {
+                        this.size = Math.max(0.1, this.base_size * (this.dist / absorption_threshold));
+                        this.merge = Math.min(1.0, this.merge + 0.12);
+                    } else {
+                        this.size += (this.base_size - this.size) * 0.1;
+                        this.merge = Math.max(0.0, this.merge - 0.1);
+                    }
+
+                    // שיגור מחדש בקצוות החיצוניים ברגע שהיא נבלעת במרכז
+                    if (this.dist <= 8) {
+                        this.dist = this.base_dist * (1.3 + Math.random() * 0.4);
+                        this.angle = Math.random() * Math.PI * 2;
+                        this.size = this.base_size;
+                        this.merge = 0.0;
+                    }
+                } else {
+                    // לוגיקת מסלול ואדוות רגילה עבור מצב רגיל ומנותק
+                    let speed_mult = is_disconnected ? 3.0 : (1.0 - fatigue * 0.5);
+                    this.angle += (this.speed + Math.sin(time_step * 0.6 + this.phase) * 0.0012) * speed_mult;
+                    this.state_timer -= 0.025;
+                    if (this.state_timer <= 0) {
+                        this.state = this.state === "outside" ? "inside" : "outside";
+                        this.state_timer = Math.random() * 1.5 + 0.9;
+                    }
+
+                    let target_dist = this.base_dist;
+                    let target_size = this.base_size;
+
+                    if (this.state === "inside") {
+                        target_dist = Math.max(8, surface_radius * (0.84 + this.surface_bias));
+                        target_size = this.base_size * 0.82;
+                        this.merge = Math.min(1.0, this.merge + 0.08);
+                    } else {
+                        let float_dist = is_disconnected ? 12 : 8;
+                        target_dist = this.base_dist + Math.sin(time_step * 1.2 + this.phase) * float_dist + Math.cos(time_step * 0.6 + this.phase * 1.4) * 4;
+                        target_size = this.base_size;
+                        this.merge = Math.max(0.0, this.merge - 0.08);
+                    }
+
+                    this.dist += (target_dist - this.dist) * 0.07;
+                    this.size += (target_size - this.size) * 0.08;
+                }
+
+                // --- עדכון פיזיקת הרתע והאיזון האלסטי של הטיפות במפגשים ביניהן ---
+                if (is_disconnected) {
+                    this.offsetX += this.vx;
+                    this.offsetY += this.vy;
+                    // חיכוך ושיכוך תנועה אטי ומדויק
+                    this.vx *= 0.84; 
+                    this.vy *= 0.84;
+                    // כוח משיכה קפיצי המחזיר אותן בהדרגה למסלולן המעגלי המקורי (Restorative Springs)
+                    this.vx += (0 - this.offsetX) * 0.035;
+                    this.vy += (0 - this.offsetY) * 0.035;
+                } else {
+                    // במצבים אחרים - חזרה מהירה למסלול ואיפוס רתע להתנהגות נקייה
+                    this.offsetX += (0 - this.offsetX) * 0.15;
+                    this.offsetY += (0 - this.offsetY) * 0.15;
+                    this.vx = 0;
+                    this.vy = 0;
+                }
+            }
+        }
+
+        // --- 4. קלאס לניהול אדוות וגלים אקראיים מקומיים (Localized Wave Pulse) ---
+        class LocalizedWavePulse {
+            constructor(baseRadius) {
+                this.baseRadius = baseRadius;
+                this.reset();
+                this.age = Math.random();
+            }
+
+            reset() {
+                this.angle = Math.random() * Math.PI * 2;
+                this.spread = 0.3 + Math.random() * 1.0; 
+                this.speed = 0.008 + Math.random() * 0.015;
+                this.maxRadius = this.baseRadius * (1.1 + Math.random() * 1.1);
+                this.age = 0; 
+                this.lineWidth = 3 + Math.random() * 8;
+                this.wobbleFreq = 3 + Math.floor(Math.random() * 5);
+                this.wobbleAmp = 5 + Math.random() * 9;
+            }
+
+            update(currentMode) {
+                let speedMult = currentMode === "thinking" ? 2.5 : (currentMode === "disconnected" ? 1.8 : 1.0);
+                
+                if (currentMode === "thinking") {
+                    // קריסת הגלים פנימה במצב חשיבה (Inward Wave Suction)
+                    this.age -= this.speed * speedMult;
+                    if (this.age <= 0.0) {
+                        this.reset();
+                        this.age = 0.99; 
+                    }
+                } else {
+                    // התפשטות רגילה החוצה
+                    this.age += this.speed * speedMult;
+                    if (this.age >= 1.0) {
+                        this.reset();
+                        this.age = 0.01;
+                    }
+                }
+            }
+
+            draw(ctx, center, time_step) {
+                let currentR = this.maxRadius * this.age;
+                let alpha = Math.sin(this.age * Math.PI); 
+                
+                ctx.strokeStyle = `rgba(255, 255, 255, ${0.45 * alpha})`;
+                ctx.lineWidth = this.lineWidth;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                
+                let startAng = this.angle - this.spread / 2;
+                let endAng = this.angle + this.spread / 2;
+                let steps = 30; 
+                
+                for (let i = 0; i <= steps; i++) {
+                    let a = startAng + (endAng - startAng) * (i / steps);
+                    let wobble = Math.sin(a * this.wobbleFreq - time_step * 5.0) * this.wobbleAmp * (0.3 + this.age * 0.7);
+                    wobble += Math.cos(a * 12 + time_step * 2.5) * 3; 
+                    
+                    let finalR = Math.max(5, currentR + wobble);
+                    let x = center.x + Math.cos(a) * finalR;
+                    let y = center.y + Math.sin(a) * finalR;
+                    
+                    if (i === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+                ctx.stroke();
+            }
+        }
+
+        const canvas = document.getElementById('eyeCanvas');
+        const ctx = canvas.getContext('2d');
+        const normalBtn = document.getElementById('normalBtn');
+        const thinkingBtn = document.getElementById('thinkingBtn');
+        const disconnectedBtn = document.getElementById('disconnectedBtn');
+        const cameraBtn = document.getElementById('cameraBtn');
+        const fatigueSlider = document.getElementById('fatigueSlider');
+        const fatigueValueDisplay = document.getElementById('fatigueValue');
+
+        const size = 512;
+        const liquidScale = 0.24;
+
+        // פיזיקת גלי מעטפת הנוזל
+        const n = 90;
+        const base_radius = size * liquidScale;
+        const angles = Array.from({ length: n }, (_, i) => (2 * Math.PI * i) / n);
+        const radii = Array(n).fill(base_radius);
+        const velocities = Array(n).fill(0.0);
+
+        const center = { x: size / 2, y: size / 2 };
+        let eye_center = { x: size / 2, y: size / 2 };
+        let liquid_center = { x: size / 2, y: size / 2 };
+
+        const droplets = Array.from({ length: 11 }, () => new Droplet(base_radius));
+
+        // גלים אקראיים מקומיים המתפשטים בזמנים, כיוונים וגדלים שונים
+        const wavePulses = Array.from({ length: 10 }, () => new LocalizedWavePulse(base_radius));
+
+        let time_step = 0.0;
+        const k = 0.018;
+        const neighbor_k = 0.08;
+        const damping = 0.22;
+
+        const eye_radius = Math.max(40, size * 0.10);
+        const iris_radius = Math.max(24, eye_radius * 0.55);
+        const pupil_radius = Math.max(10, iris_radius * 0.40);
+
+        // מעקב עכבר ומחוות מגע
+        let globalMouse = { x: size / 2, y: size / 2 };
+        
+        // מצב מצמוץ
+        let blink_timer = Math.random() * 3 + 2;
+        let blink_progress = 0.0;
+        let blink_state = "idle";
+        
+        // ניהול מצבי עין: "normal", "thinking", "disconnected"
+        let currentMode = "normal";
+
+        // לוגיקת מצלמת אינטרנט והשתקפות
+        let isCameraActive = false;
+        let cameraStream = null;
+        let videoElement = null;
+
+        // משתני מצב להנפשת "נשימה" והתכווצות/התרחבות האישון
+        let pupilScaleTarget = 1.0;
+        let pupilScaleCurrent = 1.0;
+        let pupilTimer = 0;
+
+        fatigueSlider.addEventListener('input', () => {
+            fatigueValueDisplay.innerText = `${fatigueSlider.value}%`;
+        });
+
+        const updateButtons = (activeBtn) => {
+            [normalBtn, thinkingBtn, disconnectedBtn].forEach(btn => {
+                if (btn) btn.classList.remove('active');
+            });
+            if (activeBtn) activeBtn.classList.add('active');
+        };
+
+        normalBtn.addEventListener('click', () => {
+            currentMode = "normal";
+            updateButtons(normalBtn);
+        });
+
+        thinkingBtn.addEventListener('click', () => {
+            currentMode = "thinking";
+            updateButtons(thinkingBtn);
+        });
+
+        disconnectedBtn.addEventListener('click', () => {
+            currentMode = "disconnected";
+            updateButtons(disconnectedBtn);
+        });
+
+        // לוגיקת הפעלה/כיבוי של המצלמה והזרמת הווידאו
+        cameraBtn.addEventListener('click', async () => {
+            if (isCameraActive) {
+                if (cameraStream) {
+                    cameraStream.getTracks().forEach(track => track.stop());
+                }
+                cameraStream = null;
+                isCameraActive = false;
+                cameraBtn.classList.remove('active');
+                cameraBtn.innerText = "הפעל מצלמה";
+            } else {
+                try {
+                    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { width: 512, height: 512 } });
+                    
+                    if (!videoElement) {
+                        videoElement = document.createElement('video');
+                        videoElement.autoplay = true;
+                        videoElement.playsInline = true;
+                        videoElement.muted = true;
+                    }
+                    videoElement.srcObject = cameraStream;
+                    videoElement.onloadedmetadata = () => {
+                        videoElement.play();
+                    };
+                    
+                    isCameraActive = true;
+                    cameraBtn.classList.add('active');
+                    cameraBtn.innerText = "כבה מצלמה";
+                } catch (err) {
+                    console.error("Camera access failed:", err);
+                    const originalText = cameraBtn.innerText;
+                    cameraBtn.innerText = "סורב / אין מצלמה";
+                    cameraBtn.style.borderColor = "#ef4444";
+                    cameraBtn.style.color = "#ef4444";
+                    setTimeout(() => {
+                        cameraBtn.innerText = originalText;
+                        cameraBtn.style.borderColor = "";
+                        cameraBtn.style.color = "";
+                    }, 3000);
+                }
+            }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            globalMouse.x = e.clientX - rect.left;
+            globalMouse.y = e.clientY - rect.top;
+        });
+
+        // תמיכה באירועי מגע עבור מכשירים ניידים
+        window.addEventListener('touchmove', (e) => {
+            if (e.touches.length > 0) {
+                const rect = canvas.getBoundingClientRect();
+                globalMouse.x = e.touches[0].clientX - rect.left;
+                globalMouse.y = e.touches[0].clientY - rect.top;
+            }
+        }, { passive: true });
+
+        const get_surface_radius = (angle) => {
+            let normalized = (angle % (2 * Math.PI)) / (2 * Math.PI);
+            if (normalized < 0) normalized += 1;
+            const idx = Math.floor(normalized * n) % n;
+            return Math.max(base_radius * 0.7, radii[idx]);
+        };
+
+        const render = () => {
+            updateNoiseBackground();
+
+            let is_thinking = (currentMode === "thinking");
+            let is_disconnected = (currentMode === "disconnected");
+            
+            let fatigue = fatigueSlider.value / 100;
+
+            let time_step_increment = is_thinking ? 0.08 : (is_disconnected ? 0.05 : 0.025 * (1.0 - fatigue * 0.4));
+            time_step += time_step_increment;
+
+            // לוגיקת מצמוץ עין - נשארת נקייה לחלוטין מאדמומיות
+            if (blink_state === "idle") {
+                blink_timer -= 0.025;
+                if (blink_timer <= 0) blink_state = "closing";
+            } else if (blink_state === "closing") {
+                blink_progress += 0.12;
+                if (blink_progress >= 1.0) {
+                    blink_progress = 1.0;
+                    blink_state = "opening";
+                }
+            } else if (blink_state === "opening") {
+                blink_progress -= 0.08;
+                if (blink_progress <= 0.0) {
+                    blink_progress = 0.0;
+                    blink_state = "idle";
+                    blink_timer = Math.random() * (is_thinking ? 6.0 : 4.0) + 1.5;
+                }
+            }
+
+            // העין נשארת עגולה לחלוטין מתחת ל-40% עייפות, ומתחילה להיסגר בהדרגה מעל 40%
+            let droop_factor = fatigue < 0.4 ? 0.0 : (fatigue - 0.4) / 0.6;
+            let base_scale_y = 1.0 - (droop_factor * 0.65); 
+            
+            let tremble = fatigue > 0.65 ? Math.sin(time_step * 35) * (fatigue - 0.65) * 1.2 : 0;
+            
+            let eye_scale_y = base_scale_y * (1.0 - blink_progress) + (tremble / eye_radius);
+            eye_scale_y = Math.max(0.01, eye_scale_y);
+
+            // לוגיקת "נשימה" והתכווצות של האישון
+            pupilTimer -= 0.016;
+            if (pupilTimer <= 0) {
+                if (Math.random() < 0.35) {
+                    pupilScaleTarget = 0.70 + Math.random() * 0.55; 
+                    pupilTimer = Math.random() * 2.0 + 0.6; 
+                } else {
+                    pupilScaleTarget = 0.90 + Math.random() * 0.20;
+                    pupilTimer = Math.random() * 0.8 + 0.3;
+                }
+            }
+            pupilScaleCurrent += (pupilScaleTarget - pupilScaleCurrent) * 0.06;
+            let finalPupilScale = pupilScaleCurrent + Math.sin(time_step * 10.0) * 0.015;
+            
+            if (is_thinking) {
+                finalPupilScale = (pupilScaleCurrent * 0.8) + Math.sin(time_step * 15.0) * 0.04;
+            } else if (is_disconnected) {
+                finalPupilScale = (pupilScaleCurrent * 0.7) + (Math.random() - 0.5) * 0.05;
+            }
+
+            let dynamicPupilRadius = pupil_radius * finalPupilScale;
+
+            for (let i = 0; i < n; i++) {
+                let r = radii[i];
+                let force = -k * (r - base_radius);
+
+                const left = radii[(i - 1 + n) % n];
+                const right = radii[(i + 1) % n];
+                force += neighbor_k * (left + right - 2 * r);
+
+                const angle = angles[i];
+                let force_noise = 0;
+                
+                if (is_thinking) {
+                    let arms = 4;
+                    let speed = 12.0;
+                    let amp = 0.8;
+                    force_noise = Math.sin(angle * arms - time_step * speed) * amp;
+                    force_noise += Math.sin(angle * 7 + time_step * 5) * 0.25;
+                } else if (is_disconnected) {
+                    force_noise = Math.sin(angle * 12 + time_step * 14) * 0.7;
+                    force_noise += (Math.random() - 0.5) * 3.5;
+                } else {
+                    const noise1 = Math.sin(time_step * 0.9 + angle * 2.2) * 0.18;
+                    const noise2 = Math.sin(time_step * 1.4 - angle * 4.1 + 1.4) * 0.12;
+                    const noise3 = Math.cos(time_step * 0.5 + angle * 1.4) * 0.14;
+                    force_noise = noise1 + noise2 + noise3;
+                }
+                
+                force += force_noise;
+                force += -damping * velocities[i];
+
+                velocities[i] += force;
+                radii[i] += velocities[i];
+                
+                if (radii[i] < base_radius * 0.5) {
+                    radii[i] = base_radius * 0.5;
+                    velocities[i] *= -0.3;
+                }
+                if (radii[i] > base_radius * 1.9) {
+                    radii[i] = base_radius * 1.9;
+                    velocities[i] *= -0.3;
+                }
+            }
+
+            // עדכון מיקומי טיפות בהתאם לפיזיקה הבסיסית
+            for (let drop of droplets) {
+                drop.update(time_step, get_surface_radius(drop.angle), currentMode, fatigue);
+            }
+
+            // --- 5. מנוע התנגשויות אלסטיות עצמאיות בין טיפות במצב מנותק (Droplet Elastic Collision Engine) ---
+            if (is_disconnected) {
+                for (let i = 0; i < droplets.length; i++) {
+                    let d1 = droplets[i];
+                    // חישוב המיקום העולמי הנוכחי של טיפה 1 בקנבס כולל היסטי הרתע שלה
+                    let p1x = liquid_center.x + d1.dist * Math.cos(d1.angle) + d1.offsetX;
+                    let p1y = liquid_center.y + d1.dist * Math.sin(d1.angle) + d1.offsetY;
+                    let r1 = d1.size / 2;
+
+                    for (let j = i + 1; j < droplets.length; j++) {
+                        let d2 = droplets[j];
+                        // חישוב המיקום העולמי הנוכחי של טיפה 2
+                        let p2x = liquid_center.x + d2.dist * Math.cos(d2.angle) + d2.offsetX;
+                        let p2y = liquid_center.y + d2.dist * Math.sin(d2.angle) + d2.offsetY;
+                        let r2 = d2.size / 2;
+
+                        let dx = p2x - p1x;
+                        let dy = p2y - p1y;
+                        let dist = Math.hypot(dx, dy);
+                        let minDist = r1 + r2;
+
+                        // בדיקה אם הבועות חופפות פיזית
+                        if (dist < minDist && dist > 0) {
+                            let overlap = minDist - dist;
+                            let nx = dx / dist; // נורמל ההתנגשות
+                            let ny = dy / dist;
+
+                            // הדיפה מיידית למניעת הידבקות ותקיעות
+                            d1.offsetX -= nx * overlap * 0.5;
+                            d1.offsetY -= ny * overlap * 0.5;
+                            d2.offsetX += nx * overlap * 0.5;
+                            d2.offsetY += ny * overlap * 0.5;
+
+                            // דחף אלסטי פיזיקלי של תנע (Elastic Impulse Repulsion)
+                            let impulsePower = 1.2; // עוצמת הרתיעה והבלאנס
+                            d1.vx -= nx * impulsePower;
+                            d1.vy -= ny * impulsePower;
+                            d2.vx += nx * impulsePower;
+                            d2.vy += ny * impulsePower;
+                        }
+                    }
+                }
+            }
+
+            ctx.clearRect(0, 0, size, size);
+
+            ctx.save();
+            if (is_disconnected && Math.random() < 0.15) {
+                let jitterX = (Math.random() - 0.5) * 10;
+                let jitterY = (Math.random() - 0.5) * 6;
+                ctx.translate(jitterX, jitterY);
+            }
+
+            let trackingSpeed = is_disconnected ? 0.01 : (0.05 * (1.0 - fatigue * 0.6));
+            let dx = globalMouse.x - center.x;
+            let dy = globalMouse.y - center.y;
+            let dist = Math.hypot(dx, dy);
+            let angle = Math.atan2(dy, dx);
+
+            let max_iris_offset = eye_radius - iris_radius - 2;
+            let iris_dist = Math.min(dist * trackingSpeed, max_iris_offset);
+            let iris_center = {
+                x: center.x + Math.cos(angle) * iris_dist,
+                y: center.y + Math.sin(angle) * iris_dist
+            };
+
+            // שינוי הקוד: האישון תמיד יישאר בדיוק במרכז הקשתית כדי שלא יזוז ממנה או יחרוג
+            let pupil_center = {
+                x: iris_center.x,
+                y: iris_center.y
+            };
+
+            // חישוב היסט השתקפות פרלקס תלת-ממדי דינמי המושפע מתנועת העכבר
+            let parallaxX = (globalMouse.x - center.x) * 0.15;
+            let parallaxY = (globalMouse.y - center.y) * 0.15;
+
+            // 1. ציור טיפות (מרונדרות מטאליות אפורות, במצב מנותק הן מתנגשות ונדחפות)
+            for (let drop of droplets) {
+                let px = liquid_center.x + drop.dist * Math.cos(drop.angle) + drop.offsetX;
+                let py = liquid_center.y + drop.dist * Math.sin(drop.angle) + drop.offsetY;
+                
+                let surface_r = get_surface_radius(drop.angle);
+                let sx = liquid_center.x + surface_r * Math.cos(drop.angle);
+                let sy = liquid_center.y + surface_r * Math.sin(drop.angle);
+                
+                let merge_factor = 0.0;
+                if (drop.state === "inside" || is_thinking) merge_factor = 0.85;
+                else if (Math.abs(drop.dist - surface_r) < 12) merge_factor = 0.45;
+
+                // ציור שובל המיזוג כשהטיפה מתקרבת או נבלעת בנוזל הראשי (ללא קו חיבור / פסים חדים)
+                if (merge_factor > 0 && drop.size > 0.5) {
+                    let mx = (px + sx) / 2;
+                    let my = (py + sy) / 2;
+                    let stretch = 1.0 + drop.merge * 0.8;
+                    
+                    ctx.beginPath();
+                    ctx.ellipse(mx, my, (drop.size * 0.95 * stretch)/2, (drop.size * 0.6 * stretch)/2, drop.angle, 0, 2*Math.PI);
+                    ctx.fillStyle = is_disconnected ? `rgba(239,68,68,${0.15 * merge_factor})` : `rgba(220,225,235,${0.14 * merge_factor})`;
+                    ctx.fill();
+                }
+
+                if (drop.size > 0.5) {
+                    ctx.beginPath();
+                    ctx.arc(px, py, drop.size / 2, 0, 2 * Math.PI);
+                    ctx.save();
+                    ctx.clip();
+
+                    let dropBase = ctx.createRadialGradient(px - drop.size * 0.15, py - drop.size * 0.15, 0, px, py, drop.size * 0.55);
+                    if (is_disconnected) {
+                        dropBase.addColorStop(0.0, "#ffffff");
+                        dropBase.addColorStop(0.2, "rgba(239, 68, 68, 0.45)");
+                        dropBase.addColorStop(0.65, "rgba(127, 29, 29, 0.2)");
+                        dropBase.addColorStop(1.0, "#000000");
+                    } else {
+                        dropBase.addColorStop(0.0, "#ffffff");
+                        dropBase.addColorStop(0.25, "rgba(220, 225, 235, 0.95)"); 
+                        dropBase.addColorStop(0.65, "rgba(120, 125, 135, 0.65)");
+                        dropBase.addColorStop(0.95, "rgba(30, 32, 40, 0.9)");
+                        dropBase.addColorStop(1.0, "#000000");
+                    }
+                    ctx.fillStyle = dropBase;
+                    ctx.fill();
+
+                    // הקרנת השתקפות מצלמה דינמית גם בתוך הטיפות המרחפות
+                    if (isCameraActive && videoElement && videoElement.readyState >= videoElement.HAVE_CURRENT_DATA) {
+                        ctx.save();
+                        ctx.globalAlpha = 0.35;
+                        ctx.globalCompositeOperation = "color-dodge"; 
+                        ctx.translate(px, py);
+                        ctx.scale(-1, 1);
+                        ctx.drawImage(videoElement, -drop.size * 0.6 + (parallaxX * 0.1), -drop.size * 0.6 + (parallaxY * 0.1), drop.size * 1.2, drop.size * 1.2);
+                        ctx.restore();
+                    }
+
+                    // אפקט התרחבות פנימי בטיפה
+                    let dp = (time_step * (is_thinking ? 0.4 : 0.2) + drop.phase) % 1.0;
+                    let dScale = is_thinking ? 1.2 - dp * 0.8 : 0.4 + dp * 0.8;
+                    let dAlpha = Math.sin(dp * Math.PI) * 0.8;
+
+                    ctx.save();
+                    ctx.globalCompositeOperation = "overlay";
+                    ctx.globalAlpha = dAlpha; 
+                    
+                    const dropMatrix = new DOMMatrix();
+                    dropMatrix.translateSelf(px, py);
+                    dropMatrix.scaleSelf(dScale, dScale);
+                    dropMatrix.rotateSelf(drop.angle * 57.3 + time_step * (is_thinking ? 3 : 5));
+                    dropMatrix.translateSelf(-px, -py);
+                    
+                    const dropNoisePattern = ctx.createPattern(liquidNoiseCanvas, 'repeat');
+                    dropNoisePattern.setTransform(dropMatrix);
+                    ctx.fillStyle = dropNoisePattern;
+                    ctx.fillRect(px - drop.size, py - drop.size, drop.size * 2, drop.size * 2);
+                    ctx.restore();
+
+                    ctx.restore();
+                }
+            }
+
+            // 2. גוף נוזלי ראשי
+            let points = [];
+            for (let i = 0; i < n; i++) {
+                points.push({
+                    x: liquid_center.x + radii[i] * Math.cos(angles[i]),
+                    y: liquid_center.y + radii[i] * Math.sin(angles[i])
+                });
+            }
+
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            for (let i = 0; i < n; i++) {
+                let p1 = points[(i + 1) % n];
+                let p2 = points[(i + 2) % n];
+                let cp2 = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+                ctx.quadraticCurveTo(p1.x, p1.y, cp2.x, cp2.y);
+            }
+
+            ctx.save();
+            ctx.clip(); // חיתוך גוף הנוזל כולו
+
+            // א. בסיס כרום אטום לחלוטין
+            let baseMetalGrad = ctx.createRadialGradient(center.x, center.y, base_radius * 0.1, center.x, center.y, base_radius * 1.8);
+            if (is_disconnected) {
+                baseMetalGrad.addColorStop(0, "#4a1215");
+                baseMetalGrad.addColorStop(0.6, "#1a0506");
+                baseMetalGrad.addColorStop(1.0, "#080102");
+            } else if (is_thinking) {
+                baseMetalGrad.addColorStop(0, "#1d2a44");
+                baseMetalGrad.addColorStop(0.6, "#0f1624");
+                baseMetalGrad.addColorStop(1.0, "#05070a");
+            } else {
+                baseMetalGrad.addColorStop(0.0, "#f1f5f9"); 
+                baseMetalGrad.addColorStop(0.35, "#cbd5e1"); 
+                baseMetalGrad.addColorStop(0.75, "#64748b"); 
+                baseMetalGrad.addColorStop(1.0, "#334155"); 
+            }
+            ctx.fillStyle = baseMetalGrad;
+            ctx.fillRect(center.x - base_radius * 2.5, center.y - base_radius * 2.5, base_radius * 5, base_radius * 5);
+
+            // ב. מקרן מצלמת אינטרנט בזמן אמת כהשתקפות כרום (Futuristic Mirror Reflection)
+            if (isCameraActive && videoElement && videoElement.readyState >= videoElement.HAVE_CURRENT_DATA) {
+                ctx.save();
+                ctx.globalAlpha = is_disconnected ? 0.12 : 0.32; 
+                ctx.globalCompositeOperation = "color-dodge"; 
+                
+                // החלת היפוך אופקי למראה משולב עם היסט פרלקס תלת ממדי
+                ctx.translate(center.x + parallaxX, center.y + parallaxY);
+                ctx.scale(-1, 1);
+                
+                ctx.drawImage(
+                    videoElement, 
+                    -base_radius * 1.5, 
+                    -base_radius * 1.5, 
+                    base_radius * 3.0, 
+                    base_radius * 3.0
+                );
+                ctx.restore();
+            }
+
+            // ג. מנוע אדוות מים אקראיות מקומיות (Localized Wave Pulses)
+            ctx.save();
+            ctx.globalCompositeOperation = "overlay"; 
+            ctx.globalAlpha = is_thinking ? 0.45 : (is_disconnected ? 0.2 : 0.65);
+            ctx.filter = "blur(5px)";
+            
+            for (let pulse of wavePulses) {
+                pulse.update(currentMode);
+                pulse.draw(ctx, center, time_step);
+            }
+            ctx.restore();
+
+            // ד. החזרי אור כסופים
+            let refractHalo = ctx.createRadialGradient(center.x, center.y, eye_radius * 0.85, center.x, center.y, eye_radius * 1.6);
+            if (is_disconnected) {
+                refractHalo.addColorStop(0.0, "rgba(254, 202, 202, 0.85)");
+                refractHalo.addColorStop(0.2, "rgba(220, 38, 38, 0.4)"); 
+                refractHalo.addColorStop(1.0, "rgba(0,0,0,0)");
+            } else {
+                refractHalo.addColorStop(0.0, "rgba(255, 255, 255, 0.85)");
+                refractHalo.addColorStop(0.2, "rgba(215, 220, 235, 0.6)");
+                refractHalo.addColorStop(0.55, "rgba(60, 65, 75, 0.15)");
+                refractHalo.addColorStop(1.0, "rgba(0,0,0,0)");
+            }
+            ctx.fillStyle = refractHalo;
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, base_radius * 1.8, 0, Math.PI * 2);
+            ctx.fill();
+
+            // ה. השתקפויות כרום מרוחות עשירות (Soft Metal Reflections)
+            ctx.filter = "blur(14px)";
+            let blobCount = is_thinking ? 6 : 4;
+            let blobSpeed = is_thinking ? 1.6 : (is_disconnected ? 0.15 : 0.35);
+            for (let b = 0; b < blobCount; b++) {
+                let phase = b * (Math.PI * 2 / blobCount) + time_step * blobSpeed;
+                
+                let bx = center.x + Math.cos(phase) * base_radius * 0.42;
+                let by = center.y + Math.sin(phase * 0.9) * base_radius * 0.42;
+                let bSizeW = base_radius * (0.75 + Math.sin(time_step * 0.3 + b) * 0.15);
+                let bSizeH = base_radius * (0.35 + Math.cos(time_step * 0.25 + b) * 0.08);
+                let bAngle = phase + Math.sin(time_step * 0.4) * 0.4;
+
+                let blobGrad = ctx.createRadialGradient(bx, by, 0, bx, by, bSizeW);
+                if (is_disconnected) {
+                    blobGrad.addColorStop(0.0, "rgba(254, 226, 226, 0.25)");
+                    blobGrad.addColorStop(0.4, "rgba(220, 38, 38, 0.08)");
+                    blobGrad.addColorStop(1.0, "rgba(0, 0, 0, 0)");
+                } else {
+                    blobGrad.addColorStop(0.0, "rgba(255, 255, 255, 0.5)"); 
+                    blobGrad.addColorStop(0.35, "rgba(241, 245, 249, 0.25)"); 
+                    blobGrad.addColorStop(0.7, "rgba(148, 163, 184, 0.05)");
+                    blobGrad.addColorStop(1.0, "rgba(0, 0, 0, 0)");
+                }
+
+                ctx.save();
+                ctx.translate(bx, by);
+                ctx.rotate(bAngle);
+                ctx.fillStyle = blobGrad;
+                ctx.beginPath();
+                ctx.ellipse(0, 0, bSizeW, bSizeH, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // ו. החזר כסוף קבוע עליון-שמאלי
+            if (!is_thinking && !is_disconnected) {
+                let chromeHighlightX = center.x - eye_radius * 0.65;
+                let chromeHighlightY = center.y - eye_radius * 0.65;
+                let chromeHighlightGrad = ctx.createRadialGradient(chromeHighlightX, chromeHighlightY, 0, chromeHighlightX, chromeHighlightY, base_radius * 0.5);
+                chromeHighlightGrad.addColorStop(0.0, "rgba(255, 255, 255, 0.45)"); 
+                chromeHighlightGrad.addColorStop(0.5, "rgba(226, 232, 240, 0.12)");
+                chromeHighlightGrad.addColorStop(1.0, "rgba(0, 0, 0, 0)");
+                ctx.fillStyle = chromeHighlightGrad;
+                ctx.beginPath();
+                ctx.arc(chromeHighlightX, chromeHighlightY, base_radius * 0.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.filter = "none";
+
+            // ז. נקודת אור מסנוורת
+            let sunX = center.x + Math.sin(time_step * 0.4) * base_radius * 0.45;
+            let sunY = center.y + Math.cos(time_step * 0.35) * base_radius * 0.45;
+            let sunSpec = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, base_radius * 0.7);
+            if (is_disconnected) {
+                sunSpec.addColorStop(0.0, "#ffffff");
+                sunSpec.addColorStop(0.12, "#ef4444");
+                sunSpec.addColorStop(1.0, "rgba(0,0,0,0)");
+            } else {
+                sunSpec.addColorStop(0.0, "#ffffff"); 
+                sunSpec.addColorStop(0.1, "rgba(255, 255, 255, 0.85)");
+                sunSpec.addColorStop(0.3, "rgba(241, 245, 249, 0.35)");
+                sunSpec.addColorStop(1.0, "rgba(0,0,0,0)");
+            }
+            ctx.fillStyle = sunSpec;
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, base_radius * 2.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // ח. אור שולי פרינל מתכתי עשיר
+            let edgeRim = ctx.createRadialGradient(center.x, center.y, base_radius * 0.82, center.x, center.y, base_radius * 1.45);
+            if (is_disconnected) {
+                edgeRim.addColorStop(0, "rgba(0,0,0,0)");
+                edgeRim.addColorStop(0.88, "rgba(220, 38, 38, 0.1)");
+                edgeRim.addColorStop(1.0, "rgba(255, 255, 255, 0.6)");
+            } else {
+                edgeRim.addColorStop(0, "rgba(0,0,0,0)");
+                edgeRim.addColorStop(0.94, "rgba(255, 255, 255, 0.45)");
+                edgeRim.addColorStop(1.0, "rgba(255, 255, 255, 0.85)");
+            }
+            ctx.fillStyle = edgeRim;
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, base_radius * 1.45, 0, Math.PI * 2);
+            ctx.fill();
+
+            // --- ט. טקסטורת רעש גלי מים המתרחבת/מתכנסת (Radial Smeared Wave Flow) ---
+            
+            // שכבה 1
+            let phase1 = (time_step * (is_thinking ? -0.1 : 0.08)) % 1.0;
+            if (phase1 < 0) phase1 += 1.0;
+            let scale1 = 0.35 + phase1 * 1.45; 
+            let alpha1 = Math.sin(phase1 * Math.PI) * 0.75; 
+            
+            ctx.save();
+            ctx.globalCompositeOperation = "overlay";
+            ctx.globalAlpha = alpha1; 
+            const matrix1 = new DOMMatrix();
+            matrix1.translateSelf(center.x, center.y);
+            matrix1.scaleSelf(scale1, scale1);
+            matrix1.rotateSelf(time_step * (is_thinking ? 1.5 : 1.0));
+            matrix1.translateSelf(-center.x, -center.y);
+            const pat1 = ctx.createPattern(liquidNoiseCanvas, 'repeat');
+            pat1.setTransform(matrix1);
+            ctx.fillStyle = pat1;
+            ctx.fillRect(center.x - base_radius * 2.5, center.y - base_radius * 2.5, base_radius * 5, base_radius * 5);
+            ctx.restore();
+
+            // שכבה 2
+            let phase2 = (time_step * (is_thinking ? -0.1 : 0.08) + 0.5) % 1.0;
+            if (phase2 < 0) phase2 += 1.0;
+            let scale2 = 0.35 + phase2 * 1.45;
+            let alpha2 = Math.sin(phase2 * Math.PI) * 0.65;
+            
+            ctx.save();
+            ctx.globalCompositeOperation = "overlay";
+            ctx.globalAlpha = alpha2; 
+            const matrix2 = new DOMMatrix();
+            matrix2.translateSelf(center.x, center.y);
+            matrix2.scaleSelf(scale2, scale2);
+            matrix2.rotateSelf(time_step * (is_thinking ? -1.0 : -0.8)); 
+            matrix2.translateSelf(-center.x, -center.y);
+            const pat2 = ctx.createPattern(liquidNoiseCanvas2, 'repeat');
+            pat2.setTransform(matrix2);
+            ctx.fillStyle = pat2;
+            ctx.fillRect(center.x - base_radius * 2.5, center.y - base_radius * 2.5, base_radius * 5, base_radius * 5);
+            ctx.restore();
+
+            ctx.restore(); // סיום חיתוך גוף המים
+
+            // י. קו מפריד דקיק חיצוני
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            for (let i = 0; i < n; i++) {
+                let p1 = points[(i + 1) % n];
+                let p2 = points[(i + 2) % n];
+                let cp2 = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+                ctx.quadraticCurveTo(p1.x, p1.y, cp2.x, cp2.y);
+            }
+            ctx.strokeStyle = is_disconnected ? "rgba(220, 38, 38, 0.35)" : "rgba(255, 255, 255, 0.35)";
+            ctx.lineWidth = 1.0;
+            ctx.stroke();
+
+            // --- 3. הפעלת מסיכת עפעפיים אליפטית מושלמת ועגולה ---
+            ctx.save();
+            ctx.beginPath();
+            ctx.ellipse(eye_center.x, eye_center.y, eye_radius, eye_radius * eye_scale_y, 0, 0, Math.PI * 2);
+            ctx.clip(); 
+
+            // א. ציור הסקלרה (גלגל העין הלבן) עם השפעת העייפות
+            let scleraGrad = ctx.createRadialGradient(eye_center.x, eye_center.y, eye_radius * 0.4, eye_center.x, eye_center.y, eye_radius);
+            scleraGrad.addColorStop(0.0, "#fafafc"); 
+            
+            let pinkIntensity = Math.floor(fatigue * 125); 
+            scleraGrad.addColorStop(0.65, `rgb(250, ${235 - pinkIntensity}, ${235 - pinkIntensity})`);
+            
+            let redIntensity = Math.floor(100 + fatigue * 155); 
+            let greenIntensity = Math.floor(40 - fatigue * 40); 
+            scleraGrad.addColorStop(0.85, `rgb(${redIntensity}, ${greenIntensity}, ${greenIntensity})`);
+            scleraGrad.addColorStop(1.0, `rgb(${120 + Math.floor(fatigue * 50)}, 10, 10)`);
+            
+            ctx.fillStyle = scleraGrad;
+            ctx.beginPath();
+            ctx.arc(eye_center.x, eye_center.y, eye_radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // ב. ציור נימי דם עדינים פרוצדורליים
+            if (fatigue > 0.05) {
+                ctx.save();
+                ctx.strokeStyle = `rgba(185, 28, 28, ${fatigue * 0.75})`;
+                ctx.lineWidth = 0.7;
+                
+                for (let v = 0; v < 8; v++) {
+                    let vAngle = (v * Math.PI / 4) + Math.sin(time_step * 0.05 + v) * 0.08;
+                    let startX = eye_center.x + Math.cos(vAngle) * eye_radius;
+                    let startY = eye_center.y + Math.sin(vAngle) * eye_radius;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(startX, startY);
+                    
+                    let curX = startX;
+                    let curY = startY;
+                    let segments = 6;
+                    let distToCenter = eye_radius * (0.35 + Math.sin(v) * 0.1);
+                    
+                    for (let s = 1; s <= segments; s++) {
+                        let factor = s / segments;
+                        let targetX = startX - Math.cos(vAngle) * distToCenter * factor;
+                        let targetY = startY - Math.sin(vAngle) * distToCenter * factor;
+                        
+                        let perpAngle = vAngle + Math.PI / 2;
+                        let wiggle = Math.sin(s * 1.8 + time_step * 0.1 + v) * 2.2 * (1 - factor);
+                        curX = targetX + Math.cos(perpAngle) * wiggle;
+                        curY = targetY + Math.sin(perpAngle) * wiggle;
+                        ctx.lineTo(curX, curY);
+                    }
+                    ctx.stroke();
+                }
+                ctx.restore();
+            }
+
+            // ג. הצללה ומיזוג עדין של עומק בקצוות העפעף
+            let rimGrad = ctx.createRadialGradient(eye_center.x, eye_center.y, eye_radius * 0.7, eye_center.x, eye_center.y, eye_radius);
+            rimGrad.addColorStop(0.0, "rgba(0,0,0,0)");
+            rimGrad.addColorStop(0.85, `rgba(${150 + Math.floor(fatigue * 105)}, 20, 20, 0.18)`);
+            rimGrad.addColorStop(1.0, "rgba(15, 23, 42, 0.45)"); 
+            ctx.fillStyle = rimGrad;
+            ctx.beginPath();
+            ctx.arc(eye_center.x, eye_center.y, eye_radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // ד. ציור הקשתית והאישון עם החייאת צבע ותנועה סיבובית של סיבים
+            if (!is_disconnected) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(iris_center.x, iris_center.y, iris_radius, 0, Math.PI * 2);
+                ctx.clip(); 
+
+                // החייאת צבע הקשתית - מעברי צבעים משתנים קלות בזמן (Dynamic Shimmer)
+                let colorWave = Math.sin(time_step * 1.2) * 0.05;
+                let irisBase = ctx.createRadialGradient(iris_center.x, iris_center.y, dynamicPupilRadius * 0.9, iris_center.x, iris_center.y, iris_radius);
+                if (is_thinking) {
+                    irisBase.addColorStop(0.0, "#3b82f6"); 
+                    irisBase.addColorStop(0.5 + colorWave, "#1d4ed8"); 
+                    irisBase.addColorStop(1.0, "#020617");
+                } else {
+                    irisBase.addColorStop(0.0, "#b45309"); 
+                    irisBase.addColorStop(0.3 + colorWave, "#15803d"); 
+                    irisBase.addColorStop(0.68 - colorWave, "#1d4ed8"); 
+                    irisBase.addColorStop(1.0, "#020617"); 
+                }
+                ctx.fillStyle = irisBase;
+                ctx.fill();
+
+                // תנועה סיבובית אטית ורוטטת של כל סיבי העין (Rotating Shimmer Fibers)
+                let irisRotationAngle = (time_step * 0.08) + Math.sin(time_step * 0.4) * 0.05;
+                let fiberCount = is_thinking ? 150 : 400;
+                
+                for (let i = 0; i < fiberCount; i++) {
+                    let baseAngle = (i * Math.PI * 2) / fiberCount + irisRotationAngle;
+                    let microWiggle = Math.sin(i * 0.05 + time_step * 2.5) * 0.02;
+                    let finalAngle = baseAngle + microWiggle;
+
+                    let lengthNoise = 0.65 + Math.sin(i * 0.12 + time_step * 0.5) * 0.12 + Math.cos(i * 0.35 - time_step * 0.3) * 0.08;
+                    let startR = dynamicPupilRadius * 0.92;
+                    let endR = iris_radius * lengthNoise;
+                    
+                    let x1 = iris_center.x + Math.cos(finalAngle) * startR;
+                    let y1 = iris_center.y + Math.sin(finalAngle) * startR;
+                    let x2 = iris_center.x + Math.cos(finalAngle) * endR;
+                    let y2 = iris_center.y + Math.sin(finalAngle) * endR;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1);
+                    ctx.lineTo(x2, y2);
+                    
+                    let fiberVal = Math.sin(i * 0.06);
+                    if (is_thinking) {
+                        ctx.strokeStyle = "rgba(147, 197, 253, 0.25)";
+                    } else {
+                        if (fiberVal > 0.35) {
+                            ctx.strokeStyle = "rgba(147, 197, 253, 0.28)"; 
+                        } else if (fiberVal > -0.2) {
+                            ctx.strokeStyle = "rgba(134, 239, 172, 0.24)"; 
+                        } else {
+                            ctx.strokeStyle = "rgba(253, 224, 71, 0.18)"; 
+                        }
+                    }
+                    ctx.lineWidth = 0.75;
+                    ctx.stroke();
+                }
+                ctx.restore();
+
+                // ציור האישון העגול הנושם
+                ctx.beginPath();
+                ctx.arc(pupil_center.x, pupil_center.y, dynamicPupilRadius, 0, Math.PI * 2);
+                ctx.fillStyle = "black";
+                ctx.fill();
+
+                if (is_thinking) {
+                    let spin_angle = time_step * 5.0;
+                    ctx.beginPath();
+                    ctx.ellipse(pupil_center.x, pupil_center.y, dynamicPupilRadius * 0.9, dynamicPupilRadius * 0.9, 0, spin_angle, spin_angle + Math.PI * 1.4);
+                    ctx.strokeStyle = "rgba(147, 197, 253, 0.85)";
+                    ctx.lineWidth = 3;
+                    ctx.lineCap = "round";
+                    ctx.stroke();
+                }
+
+            } else {
+                // מצב מנותק: קשתית כבויה ומסך תקול
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(iris_center.x, iris_center.y, iris_radius, 0, Math.PI * 2);
+                ctx.clip();
+
+                let irisBase = ctx.createRadialGradient(iris_center.x, iris_center.y, dynamicPupilRadius, iris_center.x, iris_center.y, iris_radius);
+                irisBase.addColorStop(0.0, "#090d16");
+                irisBase.addColorStop(0.5, "#111827"); 
+                irisBase.addColorStop(0.95, "#020617");
+                ctx.fillStyle = irisBase;
+                ctx.fill();
+
+                ctx.strokeStyle = "rgba(220, 38, 38, 0.15)";
+                ctx.lineWidth = 1;
+                for (let l = -iris_radius; l < iris_radius; l += 4) {
+                    let lineY = iris_center.y + l + (time_step * 5 % 4);
+                    ctx.beginPath();
+                    ctx.moveTo(iris_center.x - iris_radius, lineY);
+                    ctx.lineTo(iris_center.x + iris_radius, lineY);
+                    ctx.stroke();
+                }
+                ctx.restore();
+
+                // אישון מנותק
+                ctx.beginPath();
+                ctx.arc(pupil_center.x, pupil_center.y, dynamicPupilRadius, 0, Math.PI * 2);
+                ctx.fillStyle = "black";
+                ctx.fill();
+
+                let isFlickerOn = Math.sin(time_step * 8.0) > -0.3;
+                if (isFlickerOn) {
+                    ctx.save();
+                    ctx.strokeStyle = "rgba(239, 68, 68, 0.9)"; 
+                    ctx.shadowColor = "rgba(239, 68, 68, 0.8)";
+                    ctx.shadowBlur = 6;
+                    ctx.lineWidth = 1.5;
+                    ctx.lineCap = "round";
+                    ctx.lineJoin = "round";
+
+                    let tw = dynamicPupilRadius * 0.9;
+                    let th = dynamicPupilRadius * 0.8;
+
+                    ctx.beginPath();
+                    ctx.moveTo(pupil_center.x, pupil_center.y - th * 0.7);
+                    ctx.lineTo(pupil_center.x + tw * 0.8, pupil_center.y + th * 0.7);
+                    ctx.lineTo(pupil_center.x - tw * 0.8, pupil_center.y + th * 0.7);
+                    ctx.closePath();
+                    ctx.stroke();
+
+                    ctx.fillStyle = "rgba(239, 68, 68, 0.95)";
+                    ctx.beginPath();
+                    ctx.fillRect(pupil_center.x - 1, pupil_center.y - th * 0.3, 2, th * 0.5);
+                    ctx.arc(pupil_center.x, pupil_center.y + th * 0.45, 1, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.restore();
+                }
+            }
+
+            // ה. השתקפויות ברק עליונות (קבועות)
+            let topGlare = ctx.createRadialGradient(
+                eye_center.x - eye_radius * 0.3, eye_center.y - eye_radius * 0.3, 0,
+                eye_center.x - eye_radius * 0.3, eye_center.y - eye_radius * 0.3, eye_radius * 0.5
+            );
+            topGlare.addColorStop(0.0, "rgba(255,255,255,0.88)");
+            topGlare.addColorStop(1.0, "rgba(255,255,255,0)");
+            ctx.beginPath();
+            ctx.ellipse(eye_center.x - eye_radius*0.25, eye_center.y - eye_radius*0.25, eye_radius*0.4, eye_radius*0.25, 0, 0, 2*Math.PI);
+            ctx.fillStyle = topGlare;
+            ctx.fill();
+
+            // ו. הקרנת השתקפות מצלמה ריאליסטית עדינה וישירה המכסה את כל העין העגולה (Sclera + Iris + Pupil)
+            if (isCameraActive && videoElement && videoElement.readyState >= videoElement.HAVE_CURRENT_DATA) {
+                ctx.save();
+                ctx.globalAlpha = 0.20; 
+                ctx.globalCompositeOperation = "screen"; 
+                
+                let reflX = eye_center.x + (parallaxX * 0.25);
+                let reflY = eye_center.y + (parallaxY * 0.25);
+                let reflSize = eye_radius * 2.2; 
+                
+                ctx.translate(reflX, reflY);
+                ctx.scale(-1, 1);
+                ctx.drawImage(videoElement, -reflSize / 2, -reflSize / 2, reflSize, reflSize);
+                ctx.restore();
+            }
+
+            ctx.restore(); // סיום חיתוך העפעפיים האליפטיים (Eyelid clip restore)
+
+            ctx.restore(); // סיום השפעת גליץ' תקשורת כללית
+
+            requestAnimationFrame(render);
+        };
+
+        // הפעלת לולאת הרנדור הראשית
+        render();
+    </script>
+</body>
+</html>
