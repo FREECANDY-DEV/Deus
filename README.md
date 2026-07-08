@@ -3,6 +3,8 @@
 # 🩻 DEUS
 ### AI Persona — An Open-Source Neural Persona
 
+## [ https://freecandy-dev.github.io/Deus/ ]
+
 **Powered by Gemini AI**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -87,7 +89,7 @@ The visual core is built from the ground up for performance and aesthetic impact
 
 ```
 deus/
-├── Deus.html                 
+├── index.html                 
 └── README.md
 ```
 
