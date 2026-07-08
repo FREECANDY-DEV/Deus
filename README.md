@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🩻 DEUS
+# 🩻 DEUS - (Visual Model Skeleton)
 ### AI Persona — An Open-Source Neural Persona
 
 ## [ https://freecandy-dev.github.io/Deus/ ]
@@ -44,7 +44,7 @@
 
 ## ✦ Project Overview
 
-**Deus** is a highly advanced, open-source AI character designed to serve as a tangible, living interface for **Gemini AI**.
+**Deus** is a highly advanced, open-source AI character designed to serve as a tangible, living interface for **Local & Api AI**.
 
 By bridging the gap between abstract LLM logic and intuitive visual feedback, Deus functions as a *"Neural Persona"* — utilizing high-performance fluid-dynamic rendering and real-time biometric reflection to ensure every interaction feels organic, reactive, and alive.
 
